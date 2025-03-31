@@ -1,0 +1,13 @@
+# Core dependencies
+opencv-python>=4.5.0
+numpy>=1.19.0
+cvzone>=1.5.0
+pickle-mixin>=1.0.2
+
+# For ML-based detection
+ultralytics>=8.0.0
+torch>=1.7.0
+torchvision>=0.8.1
+
+# Optional dependencies
+matplotlib>=3.3.0  # For visualization if needed

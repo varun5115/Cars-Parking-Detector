@@ -21,7 +21,7 @@ This project implements a computer vision-based system for detecting and monitor
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/pranjayyelkotwar/https---github.com-pranjayyelkotwar-Car-Parking-Detector.git
+   git clone https://github.com/pranjayyelkotwar/Cars-Parking-Detector.git
    cd parking-space-detection
    ```
 

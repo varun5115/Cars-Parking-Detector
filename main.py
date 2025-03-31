@@ -1,57 +1,88 @@
 import cv2
-import pickle
-import cvzone
-import numpy as np
+from config import *
+from video_processing import load_video, preprocess_frame
+from parking_logic import load_parking_spaces, save_parking_spaces, draw_parking_spaces, check_spaces
 
-# Video feed
-cap = cv2.VideoCapture('carPark.mp4')
+# --- Initialize Video and Parking Spaces ---
+cap, first_frame = load_video()
+pos_list = load_parking_spaces()
 
-with open('CarParkPos', 'rb') as f:
-    posList = pickle.load(f)
+# --- Variables for mouse interaction ---
+start_point, end_point = None, None
+drawing = False
 
-width, height = 107, 48
-
-
-def checkParkingSpace(imgPro):
-    spaceCounter = 0
-
-    for pos in posList:
-        x, y = pos
-
-        imgCrop = imgPro[y:y + height, x:x + width]
-        # cv2.imshow(str(x * y), imgCrop)
-        count = cv2.countNonZero(imgCrop)
+# --- GUI Parameter Tuning ---
+cv2.namedWindow(WINDOW_NAME)
+cv2.resizeWindow(WINDOW_NAME, *WINDOW_SIZE)
+cv2.createTrackbar("Val1", WINDOW_NAME, 25, 50, lambda x: None)
+cv2.createTrackbar("Val2", WINDOW_NAME, 16, 50, lambda x: None)
+cv2.createTrackbar("Val3", WINDOW_NAME, 5, 50, lambda x: None)
 
 
-        if count < 900:
-            color = (0, 255, 0)
-            thickness = 5
-            spaceCounter += 1
-        else:
-            color = (0, 0, 255)
-            thickness = 2
+def mouse_callback(event, x, y, flags, params):
+    """Mouse click-and-drag event handler for marking spaces."""
+    global start_point, end_point, drawing, pos_list
 
-        cv2.rectangle(img, pos, (pos[0] + width, pos[1] + height), color, thickness)
-        cvzone.putTextRect(img, str(count), (x, y + height - 3), scale=1,
-                           thickness=2, offset=0, colorR=color)
+    if event == cv2.EVENT_LBUTTONDOWN:
+        drawing = True
+        start_point = (x, y)
 
-    cvzone.putTextRect(img, f'Free: {spaceCounter}/{len(posList)}', (100, 50), scale=3,
-                           thickness=5, offset=20, colorR=(0,200,0))
+    elif event == cv2.EVENT_MOUSEMOVE and drawing:
+        end_point = (x, y)
+
+    elif event == cv2.EVENT_LBUTTONUP:
+        drawing = False
+        end_point = (x, y)
+
+        # Add new parking space
+        if start_point and end_point:
+            x1, y1 = start_point
+            x2, y2 = end_point
+            pos_list.append((min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1)))
+            save_parking_spaces(pos_list)
+
+
+# --- Main Loop ---
+mode = "marking" if len(pos_list) == 0 else "detection"
+
 while True:
+    if mode == "marking":
+        img = first_frame.copy()
+        cv2.setMouseCallback("Image", mouse_callback)
 
-    if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    success, img = cap.read()
-    imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    imgBlur = cv2.GaussianBlur(imgGray, (3, 3), 1)
-    imgThreshold = cv2.adaptiveThreshold(imgBlur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                         cv2.THRESH_BINARY_INV, 25, 16)
-    imgMedian = cv2.medianBlur(imgThreshold, 5)
-    kernel = np.ones((3, 3), np.uint8)
-    imgDilate = cv2.dilate(imgMedian, kernel, iterations=1)
+        # Draw current parking spaces
+        draw_parking_spaces(img, pos_list, 0)
 
-    checkParkingSpace(imgDilate)
-    cv2.imshow("Image", img)
-    # cv2.imshow("ImageBlur", imgBlur)
-    # cv2.imshow("ImageThres", imgMedian)
-    cv2.waitKey(10)
+        # Draw ongoing selection
+        if drawing and start_point and end_point:
+            cv2.rectangle(img, start_point, end_point, (0, 255, 0), 2)
+
+        cv2.imshow("Image", img)
+
+        key = cv2.waitKey(1)
+        if key == 27 or key == ord('q'):
+            mode = "detection"
+
+    elif mode == "detection":
+        success, img = cap.read()
+        if not success:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
+
+        # Pre-processing
+        val1 = cv2.getTrackbarPos("Val1", WINDOW_NAME)
+        val2 = cv2.getTrackbarPos("Val2", WINDOW_NAME)
+        val3 = cv2.getTrackbarPos("Val3", WINDOW_NAME)
+
+        img_thres = preprocess_frame(img, val1, val2, val3)
+        free_spaces = check_spaces(img, img_thres, pos_list)
+        draw_parking_spaces(img, pos_list, free_spaces)
+
+        cv2.imshow("Image", img)
+
+        key = cv2.waitKey(1)
+        if key == 27 or key == ord('q'):
+            break
+
+cap.release()
+cv2.destroyAllWindows()

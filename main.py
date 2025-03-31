@@ -1,7 +1,17 @@
 import cv2
+import argparse
 from config import *
 from video_processing import load_video, preprocess_frame
-from parking_logic import load_parking_spaces, save_parking_spaces, draw_parking_spaces, check_spaces
+from parking_logic import (load_parking_spaces, save_parking_spaces, 
+                          draw_parking_spaces, check_spaces, 
+                          check_spaces_with_yolo)
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Parking Space Detection')
+parser.add_argument('--method', type=str, default='opencv', 
+                    choices=['opencv', 'ml'],
+                    help='Detection method: opencv or ml (YOLO)')
+args = parser.parse_args()
 
 # --- Initialize Video and Parking Spaces ---
 cap, first_frame = load_video()
@@ -45,6 +55,8 @@ def mouse_callback(event, x, y, flags, params):
 # --- Main Loop ---
 mode = "marking" if len(pos_list) == 0 else "detection"
 
+print(f"Using {args.method.upper()} method for parking space detection")
+
 while True:
     if mode == "marking":
         img = first_frame.copy()
@@ -74,8 +86,12 @@ while True:
         val2 = cv2.getTrackbarPos("Val2", WINDOW_NAME)
         val3 = cv2.getTrackbarPos("Val3", WINDOW_NAME)
 
-        img_thres = preprocess_frame(img, val1, val2, val3)
-        free_spaces = check_spaces(img, img_thres, pos_list)
+        if args.method == 'opencv':
+            img_thres = preprocess_frame(img, val1, val2, val3)
+            free_spaces = check_spaces(img, img_thres, pos_list)
+        else:  # ml method
+            free_spaces = check_spaces_with_yolo(img, pos_list)
+        
         draw_parking_spaces(img, pos_list, free_spaces)
 
         cv2.imshow("Image", img)

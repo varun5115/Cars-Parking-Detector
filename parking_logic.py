@@ -1,6 +1,7 @@
 import cv2
 import pickle
 import cvzone
+import numpy as np
 from config import *
 
 
@@ -96,4 +97,77 @@ def check_spaces_with_contours(img, img_thres, pos_list):
 
         cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
 
+    return free_spaces
+
+
+try:
+    from ultralytics import YOLO
+    # Load YOLOv8 model - will be loaded only if we use the ML method
+    model = None
+except ImportError:
+    print("Warning: ultralytics not installed. ML-based detection will not work.")
+    model = None
+
+def load_yolo_model():
+    """Load the YOLO model if not already loaded"""
+    global model
+    if model is None:
+        try:
+            print("Loading YOLO model...")
+            model = YOLO("yolov8n.pt")
+            print("YOLO model loaded successfully")
+        except Exception as e:
+            print(f"Error loading YOLO model: {e}")
+            return False
+    return True
+
+def check_spaces_with_yolo(img, pos_list):
+    """Use YOLOv8 for vehicle detection and parking space occupancy."""
+    free_spaces = 0
+    
+    # Ensure YOLO model is loaded
+    if not load_yolo_model():
+        return 0
+    
+    # Run detection on the entire frame
+    results = model(img)[0]
+    
+    # Get all detected vehicles (cars, trucks, buses, motorcycles)
+    vehicle_classes = [2, 3, 5, 7]  # COCO classes for car, motorcycle, bus, truck
+    vehicle_boxes = []
+    
+    for box in results.boxes.data:
+        x1, y1, x2, y2, conf, cls = box
+        if int(cls) in vehicle_classes and conf > 0.5:
+            vehicle_boxes.append((int(x1), int(y1), int(x2), int(y2)))
+    
+    # Check each parking space for overlapping with detected vehicles
+    for pos in pos_list:
+        x, y, w, h = pos
+        parking_area = (x, y, x + w, y + h)
+        
+        # Check if any vehicle overlaps with this parking space
+        is_occupied = False
+        for v_x1, v_y1, v_x2, v_y2 in vehicle_boxes:
+            # Calculate IoU (Intersection over Union)
+            intersection_area = max(0, min(v_x2, parking_area[2]) - max(v_x1, parking_area[0])) * \
+                               max(0, min(v_y2, parking_area[3]) - max(v_y1, parking_area[1]))
+            
+            parking_area_size = w * h
+            overlap_ratio = intersection_area / parking_area_size
+            
+            # If overlap is significant, mark as occupied
+            if overlap_ratio > 0.15:  # Threshold for considering a space occupied
+                is_occupied = True
+                break
+        
+        # Draw rectangle based on occupancy
+        if is_occupied:
+            color = (0, 0, 200)  # Red = Occupied
+        else:
+            color = (0, 200, 0)  # Green = Free
+            free_spaces += 1
+            
+        cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+    
     return free_spaces

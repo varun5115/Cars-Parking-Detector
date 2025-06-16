@@ -1,3 +1,4 @@
+
 import cv2
 import argparse
 from config import *
@@ -5,6 +6,7 @@ from video_processing import load_video, preprocess_frame
 from parking_logic import (load_parking_spaces, save_parking_spaces, 
                           draw_parking_spaces, check_spaces, 
                           check_spaces_with_yolo)
+from parking_logger import ParkingDatabaseLogger                         
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Parking Space Detection')
@@ -16,6 +18,10 @@ args = parser.parse_args()
 # --- Initialize Video and Parking Spaces ---
 cap, first_frame = load_video()
 pos_list = load_parking_spaces()
+
+# --- Initialize Database Logger ---
+total_spaces = len(pos_list)
+db_logger = ParkingDatabaseLogger("database/parking_data.db")
 
 # --- Variables for mouse interaction ---
 start_point, end_point = None, None
@@ -92,7 +98,13 @@ while True:
         else:  # ml method
             free_spaces = check_spaces_with_yolo(img, pos_list)
         
+        filled_spaces = len(pos_list) - free_spaces
+        # Log to database only if change detected
+        db_logger.log_status(free_spaces, filled_spaces, len(pos_list))
+
+
         draw_parking_spaces(img, pos_list, free_spaces)
+
 
         cv2.imshow("Image", img)
 
@@ -101,4 +113,5 @@ while True:
             break
 
 cap.release()
+db_logger.close()
 cv2.destroyAllWindows()

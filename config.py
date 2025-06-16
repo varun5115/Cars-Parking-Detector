@@ -3,7 +3,7 @@ VIDEO_PATH = 'car_parking.mp4'
 PARKING_FILE = 'CarParkPos'
 
 # Parking threshold for free vs. occupied space detection
-PARKING_THRESHOLD = 500
+PARKING_THRESHOLD = 200
 
 # GUI window settings
 WINDOW_NAME = "Vals"

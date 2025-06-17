@@ -22,7 +22,7 @@ This project implements a computer vision-based system for detecting and monitor
 1. Clone this repository:
    ```bash
    git clone https://github.com/varun5115/Cars-Parking-Detector.git
-   cd parking-space-detection
+   cd Cars-Parking-Detector
    ```
 
 2. Install the required dependencies:
